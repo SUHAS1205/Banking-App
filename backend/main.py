@@ -11,11 +11,17 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize database on startup
-    try:
-        database.init_db()
-    except Exception as e:
-        print(f"DATABASE INIT ERROR: {e}")
+    # Initialize database on startup - do not block startup
+    import threading
+    def safe_init():
+        try:
+            database.init_db()
+            print("Database initialized successfully during lifespan.")
+        except Exception as e:
+            print(f"DATABASE INIT ERROR: {e}")
+            
+    thread = threading.Thread(target=safe_init)
+    thread.start()
     yield
 
 app = FastAPI(title="KodBank API", lifespan=lifespan)
