@@ -1,12 +1,11 @@
-from fastapi import FastAPI, HTTPException, Response, Cookie, Depends
+from fastapi import FastAPI, HTTPException, Response, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr
-import database
+from pydantic import BaseModel
 import auth
+import database
 import os
 from datetime import datetime
 import mysql.connector
-
 from contextlib import asynccontextmanager
 
 @asynccontextmanager
@@ -29,8 +28,8 @@ app = FastAPI(title="KodBank API", lifespan=lifespan)
 # Enable CORS for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
-    allow_credentials=False,
+    allow_origins=["*"], # Flexible for various Vercel subdomains
+    allow_credentials=False, # Must be False if using "*"
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -39,6 +38,11 @@ app.add_middleware(
 @app.get("/health")
 async def health_check():
     db_status = "unknown"
+    missing_vars = []
+    for var in ["DB_HOST", "DB_USER", "DB_PASS", "DB_NAME", "DB_PORT"]:
+        if not os.getenv(var):
+            missing_vars.append(var)
+    
     try:
         conn = database.get_db_connection()
         conn.close()
@@ -49,26 +53,25 @@ async def health_check():
     return {
         "status": "ok", 
         "service": "KodBank API",
-        "database": db_status
+        "database": db_status,
+        "missing_env_vars": missing_vars,
+        "using_default_port": os.getenv("DB_PORT") is None
     }
 
 from fastapi.security import OAuth2PasswordBearer
 from typing import Optional
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login", auto_error=False)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
-async def get_token(
-    access_token_cookie: Optional[str] = Cookie(None, alias="access_token"),
-    access_token_header: Optional[str] = Depends(oauth2_scheme)
-):
-    token = access_token_header or access_token_cookie
-    if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    return token
+def get_token(response: Response, token: Optional[str] = Depends(oauth2_scheme)):
+    if token:
+        return token
+    # Fallback to cookies (already handled by script.js using headers, but keeping for safety)
+    return None
 
 class UserRegister(BaseModel):
     username: str
-    email: EmailStr
+    email: str
     password: str
     phone: str
 
@@ -79,22 +82,22 @@ class UserLogin(BaseModel):
 @app.post("/register")
 async def register(user: UserRegister):
     conn = database.get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor()
     
     try:
-        # Check if user already exists
+        # Check if user exists
         cursor.execute("SELECT * FROM kodusers WHERE username = %s OR email = %s", (user.username, user.email))
         if cursor.fetchone():
-            raise HTTPException(status_code=400, detail="Username or Email already registered")
+            raise HTTPException(status_code=400, detail="Username or email already exists")
         
-        # Hash password and insert user
+        # Hash password and insert
         hashed_password = auth.get_password_hash(user.password)
         cursor.execute(
-            "INSERT INTO kodusers (username, email, password, phone, role) VALUES (%s, %s, %s, %s, 'Customer')",
+            "INSERT INTO kodusers (username, email, password, phone) VALUES (%s, %s, %s, %s)",
             (user.username, user.email, hashed_password, user.phone)
         )
         conn.commit()
-        return {"message": "User registered successfully", "status": "success"}
+        return {"message": "User registered successfully"}
     
     except mysql.connector.Error as err:
         raise HTTPException(status_code=500, detail=str(err))
@@ -150,62 +153,51 @@ async def login(user: UserLogin, response: Response):
         conn.close()
 
 @app.get("/balance")
-async def get_balance(access_token: str = Depends(get_token)):
-    payload = auth.decode_token(access_token)
+async def get_balance(token: str = Depends(get_token)):
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    payload = auth.decode_token(token)
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     
     username = payload.get("sub")
-    
     conn = database.get_db_connection()
     cursor = conn.cursor(dictionary=True)
     
     try:
-        # Verify token exists in DB
-        cursor.execute("SELECT * FROM CJWT WHERE token = %s", (access_token,))
-        if not cursor.fetchone():
-            raise HTTPException(status_code=401, detail="Token not found in session")
-            
-        # Fetch balance
         cursor.execute("SELECT balance FROM kodusers WHERE username = %s", (username,))
-        user_data = cursor.fetchone()
-        
-        if not user_data:
+        user = cursor.fetchone()
+        if not user:
             raise HTTPException(status_code=404, detail="User not found")
-            
-        return {"balance": float(user_data["balance"]), "username": username}
-        
-    except mysql.connector.Error as err:
-        raise HTTPException(status_code=500, detail=str(err))
+        return {"balance": user["balance"]}
     finally:
         cursor.close()
         conn.close()
 
 @app.get("/profile")
-async def get_profile(access_token: str = Depends(get_token)):
-    payload = auth.decode_token(access_token)
+async def get_profile(token: str = Depends(get_token)):
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    payload = auth.decode_token(token)
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
-        
-    username = payload.get("sub")
     
+    username = payload.get("sub")
     conn = database.get_db_connection()
     cursor = conn.cursor(dictionary=True)
     
     try:
         cursor.execute("SELECT username, email, phone, role FROM kodusers WHERE username = %s", (username,))
-        user_data = cursor.fetchone()
-        if not user_data:
+        user = cursor.fetchone()
+        if not user:
             raise HTTPException(status_code=404, detail="User not found")
-        return user_data
-    except mysql.connector.Error as err:
-        raise HTTPException(status_code=500, detail=str(err))
+        return user
     finally:
         cursor.close()
         conn.close()
 
 if __name__ == "__main__":
     import uvicorn
-    # Using 8009 to avoid conflicts
-    port = int(os.getenv("PORT", 8009))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=8009)
