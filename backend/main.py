@@ -4,32 +4,23 @@ from pydantic import BaseModel
 import auth
 import database
 import os
-from datetime import datetime
-import mysql.connector
 from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize database on startup - do not block startup
-    import threading
-    def safe_init():
-        try:
-            database.init_db()
-            print("Database initialized successfully during lifespan.")
-        except Exception as e:
-            print(f"DATABASE INIT ERROR: {e}")
-            
-    thread = threading.Thread(target=safe_init)
-    thread.start()
+    # Initialize database on startup
+    try:
+        database.init_db()
+    except Exception as e:
+        print(f"Init Error: {e}")
     yield
 
 app = FastAPI(title="KodBank API", lifespan=lifespan)
 
-# Enable CORS for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Flexible for various Vercel subdomains
-    allow_credentials=False, # Must be False if using "*"
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -38,11 +29,6 @@ app.add_middleware(
 @app.get("/health")
 async def health_check():
     db_status = "unknown"
-    missing_vars = []
-    for var in ["DB_HOST", "DB_USER", "DB_PASS", "DB_NAME", "DB_PORT"]:
-        if not os.getenv(var):
-            missing_vars.append(var)
-    
     try:
         conn = database.get_db_connection()
         conn.close()
@@ -52,10 +38,13 @@ async def health_check():
     
     return {
         "status": "ok", 
-        "service": "KodBank API",
         "database": db_status,
-        "missing_env_vars": missing_vars,
-        "using_default_port": os.getenv("DB_PORT") is None
+        "env_check": {
+            "DB_HOST": "set" if os.getenv("DB_HOST") else "defaulting",
+            "DB_PORT": "set" if os.getenv("DB_PORT") else "defaulting (12010)",
+            "DB_USER": "set" if os.getenv("DB_USER") else "defaulting",
+            "DB_PASS": "set" if os.getenv("DB_PASS") else "missing"
+        }
     }
 
 from fastapi.security import OAuth2PasswordBearer
@@ -64,10 +53,7 @@ from typing import Optional
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 def get_token(response: Response, token: Optional[str] = Depends(oauth2_scheme)):
-    if token:
-        return token
-    # Fallback to cookies (already handled by script.js using headers, but keeping for safety)
-    return None
+    return token
 
 class UserRegister(BaseModel):
     username: str
@@ -81,123 +67,68 @@ class UserLogin(BaseModel):
 
 @app.post("/register")
 async def register(user: UserRegister):
-    conn = database.get_db_connection()
-    cursor = conn.cursor()
-    
     try:
-        # Check if user exists
+        conn = database.get_db_connection()
+        cursor = conn.cursor()
         cursor.execute("SELECT * FROM kodusers WHERE username = %s OR email = %s", (user.username, user.email))
         if cursor.fetchone():
             raise HTTPException(status_code=400, detail="Username or email already exists")
         
-        # Hash password and insert
         hashed_password = auth.get_password_hash(user.password)
-        cursor.execute(
-            "INSERT INTO kodusers (username, email, password, phone) VALUES (%s, %s, %s, %s)",
-            (user.username, user.email, hashed_password, user.phone)
-        )
+        cursor.execute("INSERT INTO kodusers (username, email, password, phone) VALUES (%s, %s, %s, %s)", (user.username, user.email, hashed_password, user.phone))
         conn.commit()
-        return {"message": "User registered successfully"}
-    
-    except mysql.connector.Error as err:
-        raise HTTPException(status_code=500, detail=str(err))
-    finally:
         cursor.close()
         conn.close()
+        return {"message": "User registered successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/login")
-async def login(user: UserLogin, response: Response):
-    conn = database.get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    
+async def login(user: UserLogin):
     try:
+        conn = database.get_db_connection()
+        cursor = conn.cursor(dictionary=True)
         cursor.execute("SELECT * FROM kodusers WHERE username = %s", (user.username,))
         db_user = cursor.fetchone()
         
         if not db_user or not auth.verify_password(user.password, db_user["password"]):
             raise HTTPException(status_code=401, detail="Invalid username or password")
         
-        # Generate token
-        token_data = {"sub": db_user["username"], "role": db_user["role"]}
-        token, expiry = auth.create_access_token(token_data)
+        token, expiry = auth.create_access_token({"sub": db_user["username"]})
         
-        # Store token in DB (CJWT)
-        cursor.execute(
-            "INSERT INTO CJWT (token, uid, expiry) VALUES (%s, %s, %s)",
-            (token, db_user["uid"], expiry)
-        )
+        cursor.execute("INSERT INTO CJWT (token, uid, expiry) VALUES (%s, %s, %s)", (token, db_user["uid"], expiry))
         conn.commit()
-        
-        # Set cookie (keeping for compatibility)
-        response.set_cookie(
-            key="access_token",
-            value=token,
-            httponly=True,
-            expires=expiry.strftime("%a, %d-%b-%Y %T GMT"),
-            samesite="lax",
-            secure=False # Set to False for local dev
-        )
-        
-        return {
-            "message": "Login successful", 
-            "status": "success", 
-            "username": db_user["username"], 
-            "role": db_user["role"],
-            "access_token": token # Return token in body for local file storage
-        }
-    
-    except mysql.connector.Error as err:
-        raise HTTPException(status_code=500, detail=str(err))
-    finally:
         cursor.close()
         conn.close()
+        
+        return {"username": db_user["username"], "access_token": token}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/balance")
 async def get_balance(token: str = Depends(get_token)):
-    if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
+    if not token: raise HTTPException(status_code=401)
     payload = auth.decode_token(token)
-    if not payload:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    if not payload: raise HTTPException(status_code=401)
     
-    username = payload.get("sub")
     conn = database.get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    
-    try:
-        cursor.execute("SELECT balance FROM kodusers WHERE username = %s", (username,))
-        user = cursor.fetchone()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        return {"balance": user["balance"]}
-    finally:
-        cursor.close()
-        conn.close()
+    cursor.execute("SELECT balance FROM kodusers WHERE username = %s", (payload["sub"],))
+    user = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return {"balance": user["balance"]}
 
 @app.get("/profile")
 async def get_profile(token: str = Depends(get_token)):
-    if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
+    if not token: raise HTTPException(status_code=401)
     payload = auth.decode_token(token)
-    if not payload:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    if not payload: raise HTTPException(status_code=401)
     
-    username = payload.get("sub")
     conn = database.get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    
-    try:
-        cursor.execute("SELECT username, email, phone, role FROM kodusers WHERE username = %s", (username,))
-        user = cursor.fetchone()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        return user
-    finally:
-        cursor.close()
-        conn.close()
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8009)
+    cursor.execute("SELECT username, email, phone, role FROM kodusers WHERE username = %s", (payload["sub"],))
+    user = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return user
