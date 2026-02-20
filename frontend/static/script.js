@@ -1,5 +1,5 @@
 // Set your production backend URL here after deploying to Render/Railway
-const PROD_API_URL = 'https://your-backend-url.onrender.com';
+const PROD_API_URL = 'https://banking-app-u4dg.onrender.com';
 const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || !window.location.hostname
     ? `http://${window.location.hostname || 'localhost'}:8009`
     : PROD_API_URL;
