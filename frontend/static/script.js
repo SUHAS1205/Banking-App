@@ -154,8 +154,12 @@ document.getElementById('btn-login').addEventListener('click', async () => {
             showNotification(data.detail || 'Login failed', 'error');
         }
     } catch (error) {
-        console.error('Login Connection Error:', error);
-        showNotification('Connection error (Check Console)', 'error');
+        console.error('Login Connection Error Details:', {
+            message: error.message,
+            stack: error.stack,
+            url: `${API_URL}/login`
+        });
+        showNotification(`Connection error: ${error.message}. Check if your backend is running at ${API_URL}`, 'error');
     }
 });
 

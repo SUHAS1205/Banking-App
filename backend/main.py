@@ -12,15 +12,16 @@ app = FastAPI(title="KodBank API")
 # Enable CORS for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Flexible for various Vercel subdomains
-    allow_credentials=False, # Must be False if using "*"
+    allow_origins=["*"], 
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 @app.get("/")
-async def root():
-    return {"message": "KodBank API is live"}
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "service": "KodBank API"}
 
 from fastapi.security import OAuth2PasswordBearer
 from typing import Optional
