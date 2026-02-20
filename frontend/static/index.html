@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KodBank - Premium Digital Banking</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</head>
+
+<body>
+    <div class="background-overlay"></div>
+
+    <div id="app" class="container">
+        <!-- Auth Page (Register/Login) -->
+        <div id="auth-section" class="card fade-in">
+            <div class="logo">
+                <span class="logo-icon">🏦</span>
+                <span class="logo-text">KodBank</span>
+            </div>
+
+            <div id="register-form" class="auth-form">
+                <h2>Create Account</h2>
+                <p>Start your premium banking journey</p>
+                <div class="form-group">
+                    <input type="text" id="reg-username" placeholder="Username" required>
+                </div>
+                <div class="form-group">
+                    <input type="email" id="reg-email" placeholder="Email Address" required>
+                </div>
+                <div class="form-group">
+                    <input type="password" id="reg-password" placeholder="Password" required>
+                </div>
+                <div class="form-group">
+                    <input type="tel" id="reg-phone" placeholder="Phone Number" required>
+                </div>
+                <button id="btn-register" class="btn-primary">Register</button>
+                <p class="switch-auth">Already have an account? <a href="#" id="link-login">Login</a></p>
+            </div>
+
+            <div id="login-form" class="auth-form hidden">
+                <h2>Welcome Back</h2>
+                <p>Login to your secure dashboard</p>
+                <div class="form-group">
+                    <input type="text" id="login-username" placeholder="Username" required>
+                </div>
+                <div class="form-group">
+                    <input type="password" id="login-password" placeholder="Password" required>
+                </div>
+                <button id="btn-login" class="btn-primary">Login</button>
+                <p class="switch-auth">New to KodBank? <a href="#" id="link-register">Register</a></p>
+            </div>
+        </div>
+
+        <!-- Dashboard Section -->
+        <div id="dashboard-section" class="dashboard hidden fade-in">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-header">
+                    <span class="logo-icon">🏦</span>
+                    <span class="sidebar-logo-text">KodBank</span>
+                </div>
+                <nav class="sidebar-nav">
+                    <a href="#" id="nav-dashboard" class="nav-item active">📊 Dashboard</a>
+                    <a href="#" id="nav-analytics" class="nav-item">📈 Analytics</a>
+                    <a href="#" id="nav-cards" class="nav-item">💳 Cards</a>
+                    <a href="#" id="nav-assets" class="nav-item">💼 Assets</a>
+                    <a href="#" id="nav-profile" class="nav-item">👤 Profile</a>
+                </nav>
+                <div class="sidebar-footer">
+                    <a href="#" class="nav-item">⚙️ Settings</a>
+                    <button id="btn-logout" class="nav-item logout-link">🚪 Logout</button>
+                </div>
+            </aside>
+
+            <!-- Main Content -->
+            <main class="dashboard-main">
+                <header class="dash-content-header">
+                    <div class="welcome-text">
+                        <h1>Welcome back, <span id="hello-user">User</span></h1>
+                        <p>Here's what's happening with your finance today.</p>
+                    </div>
+                    <div class="header-btns">
+                        <button id="btn-check-balance" class="btn-dash active-btn">Check Balance</button>
+                        <button class="btn-dash highlight-btn">Send Money</button>
+                    </div>
+                </header>
+
+                <!-- Main Dashboard View -->
+                <div id="main-dashboard-view">
+                    <!-- Cards Row -->
+                    <div class="stat-cards-row">
+                        <div class="stat-box">
+                            <div class="stat-top">
+                                <span class="stat-ico">💰</span>
+                                <span class="trend up">▲ 12.5%</span>
+                            </div>
+                            <span class="stat-label">Total Balance</span>
+                            <h2 id="balance-display" class="stat-value">₹ ********</h2>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-top">
+                                <span class="stat-ico">📈</span>
+                                <span class="trend up">▲ 8.2%</span>
+                            </div>
+                            <span class="stat-label">Monthly Income</span>
+                            <h2 class="stat-value">₹ 8,432.50</h2>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-top">
+                                <span class="stat-ico">📉</span>
+                                <span class="trend down">▼ 4.1%</span>
+                            </div>
+                            <span class="stat-label">Monthly Expenses</span>
+                            <h2 class="stat-value">₹ 3,120.45</h2>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-top">
+                                <span class="stat-ico">🐷</span>
+                                <span class="trend up">▲ 15.3%</span>
+                            </div>
+                            <span class="stat-label">Total Savings</span>
+                            <h2 class="stat-value">₹ 12,450.00</h2>
+                        </div>
+                    </div>
+
+                    <!-- Graphs & Transactions -->
+                    <div class="details-grid">
+                        <div class="glass-card chart-section">
+                            <h3>Spending Analytics</h3>
+                            <div class="chart-box">
+                                <canvas id="analyticsChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="glass-card tx-section">
+                            <h3>Recent Transactions</h3>
+                            <div class="tx-list" id="tx-list">
+                                <!-- Transactions -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Profile View -->
+                <div id="profile-view" class="hidden fade-in">
+                    <div class="glass-card">
+                        <h3>User Profile</h3>
+                        <div class="profile-info-grid"
+                            style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px;">
+                            <div class="info-item">
+                                <p style="text-align: left; margin-bottom: 8px; font-weight: 600;">Username</p>
+                                <div id="prof-username"
+                                    style="background: #09090b; padding: 12px 20px; border-radius: 12px; border: 1px solid var(--glass-border);">
+                                    -</div>
+                            </div>
+                            <div class="info-item">
+                                <p style="text-align: left; margin-bottom: 8px; font-weight: 600;">Email Address</p>
+                                <div id="prof-email"
+                                    style="background: #09090b; padding: 12px 20px; border-radius: 12px; border: 1px solid var(--glass-border);">
+                                    -</div>
+                            </div>
+                            <div class="info-item">
+                                <p style="text-align: left; margin-bottom: 8px; font-weight: 600;">Phone Number</p>
+                                <div id="prof-phone"
+                                    style="background: #09090b; padding: 12px 20px; border-radius: 12px; border: 1px solid var(--glass-border);">
+                                    -</div>
+                            </div>
+                            <div class="info-item">
+                                <p style="text-align: left; margin-bottom: 8px; font-weight: 600;">Account Role</p>
+                                <div id="prof-role"
+                                    style="background: #09090b; padding: 12px 20px; border-radius: 12px; border: 1px solid var(--glass-border);">
+                                    -</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <div id="notification" class="notification hidden"></div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
