@@ -1,0 +1,17 @@
+[project]
+name = "kodbank"
+version = "0.1.0"
+description = "KodBank full-stack banking app"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.109.0",
+    "mysql-connector-python>=8.3.0",
+    "PyJWT>=2.8.0",
+    "passlib[bcrypt]>=1.7.4",
+    "python-dotenv>=1.0.0",
+    "cryptography>=42.0.0",
+    "bcrypt>=4.1.2",
+]
+
+[project.scripts]
+app = "api.index:app"
