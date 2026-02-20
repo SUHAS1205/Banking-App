@@ -1,5 +1,8 @@
-// Use dynamic hostname to match how the user is accessing the site (localhost vs 127.0.0.1)
-const API_URL = `http://${window.location.hostname || 'localhost'}:8009`;
+// Set your production backend URL here after deploying to Render/Railway
+const PROD_API_URL = 'https://your-backend-url.onrender.com';
+const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || !window.location.hostname
+    ? `http://${window.location.hostname || 'localhost'}:8009`
+    : PROD_API_URL;
 
 // DOM Elements
 const authSection = document.getElementById('auth-section');
