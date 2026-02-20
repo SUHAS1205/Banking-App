@@ -25,8 +25,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/")
-@app.get("/health")
+@app.get("/api")
+@app.get("/api/health")
 async def health_check():
     db_status = "unknown"
     try:
@@ -65,7 +65,7 @@ class UserLogin(BaseModel):
     username: str
     password: str
 
-@app.post("/register")
+@app.post("/api/register")
 async def register(user: UserRegister):
     try:
         conn = database.get_db_connection()
@@ -83,7 +83,7 @@ async def register(user: UserRegister):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/login")
+@app.post("/api/login")
 async def login(user: UserLogin):
     try:
         conn = database.get_db_connection()
@@ -105,7 +105,7 @@ async def login(user: UserLogin):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/balance")
+@app.get("/api/balance")
 async def get_balance(token: str = Depends(get_token)):
     if not token: raise HTTPException(status_code=401)
     payload = auth.decode_token(token)
@@ -119,7 +119,7 @@ async def get_balance(token: str = Depends(get_token)):
     conn.close()
     return {"balance": user["balance"]}
 
-@app.get("/profile")
+@app.get("/api/profile")
 async def get_profile(token: str = Depends(get_token)):
     if not token: raise HTTPException(status_code=401)
     payload = auth.decode_token(token)
