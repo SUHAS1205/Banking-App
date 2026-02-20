@@ -15,8 +15,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:8009",
         "http://127.0.0.1:8009",
+        "https://kodbanking-six.vercel.app",
         "null", # Essential for local file:// access
-        "*"
     ],
     allow_credentials=True,
     allow_methods=["*"],
