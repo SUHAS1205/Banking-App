@@ -5,13 +5,18 @@ from dotenv import load_dotenv
 load_dotenv()
 
 def get_db_connection():
+    host = os.getenv("DB_HOST", "localhost")
+    if host == "localhost":
+        print("WARNING: Using DB_HOST fallback 'localhost'. Ensure environment variables are set in Render!")
+    
     return mysql.connector.connect(
-        host=os.getenv("DB_HOST", "localhost"),
-        port=os.getenv("DB_PORT", 3306),
+        host=host,
+        port=int(os.getenv("DB_PORT", 3306)),
         user=os.getenv("DB_USER", "root"),
         password=os.getenv("DB_PASS", ""),
         database=os.getenv("DB_NAME", "kodbank"),
-        ssl_disabled=False
+        ssl_disabled=False,
+        connect_timeout=10 # Fail fast instead of hanging
     )
 
 def init_db():

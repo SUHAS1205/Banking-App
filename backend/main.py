@@ -7,7 +7,18 @@ import os
 from datetime import datetime
 import mysql.connector
 
-app = FastAPI(title="KodBank API")
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Initialize database on startup
+    try:
+        database.init_db()
+    except Exception as e:
+        print(f"DATABASE INIT ERROR: {e}")
+    yield
+
+app = FastAPI(title="KodBank API", lifespan=lifespan)
 
 # Enable CORS for frontend
 app.add_middleware(
@@ -21,7 +32,19 @@ app.add_middleware(
 @app.get("/")
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "service": "KodBank API"}
+    db_status = "unknown"
+    try:
+        conn = database.get_db_connection()
+        conn.close()
+        db_status = "connected"
+    except Exception as e:
+        db_status = f"error: {str(e)}"
+    
+    return {
+        "status": "ok", 
+        "service": "KodBank API",
+        "database": db_status
+    }
 
 from fastapi.security import OAuth2PasswordBearer
 from typing import Optional
